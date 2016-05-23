@@ -1,0 +1,89 @@
+#pianoroll {
+    position: absolute;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -o-user-select: none;
+    -ms-user-select: none;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#pianoroll .keyboard {
+    position: absolute;
+    background-color: #ccc;
+}
+
+#pianoroll .keyboard-key {
+    position: absolute;
+    display: table;
+    cursor: pointer;
+    z-index: 1;
+}
+
+#pianoroll .keyboard-key> span {
+    display: table-cell;
+    color: #ccc;
+    text-align: center;
+    vertical-align: bottom;
+}
+
+#pianoroll .keyboard-white-key {
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+    background: #fff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+#pianoroll .keyboard-black-key {
+    border-left: 2px solid #333;
+    border-bottom: 4px solid #333;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background: #444;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+    z-index: 2;
+}
+
+#pianoroll .roll {
+    position: absolute;
+    background-image: url(#roll-staff-pattern);
+    background-repeat: repeat;
+    scroll: hidden;
+}
+
+#pianoroll .roll> canvas {
+    position: absolute;
+}
+
+#pianoroll .roll> .roll-seekbar {
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+#pianoroll .roll> .roll-bar-label {
+    position: fixed;
+    color: #333;
+    white-space: pre;
+}
+
+#pianoroll .graph {
+    position: absolute;
+}
+
+#pianoroll .keyboard-key:active {
+    box-shadow: 0 0 8px rgba(0, 102, 255, 0.7) inset;
+}
+
+#pianoroll .keyboard-white-key:hover {
+    background: #e0efff;
+}
+
+#pianoroll .keyboard-black-key:hover {
+    border-color: #333c56;
+    background: #444877;
+}

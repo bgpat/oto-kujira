@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+        <title>音クジラ</title>
+        <!--<meta name="viewport" content="width=device-width; initial-scale=1.0">-->
+        <link rel="stylesheet" type="text/css" href="css/default.css" />
+        <link rel="stylesheet" type="text/css" href="css/pianoroll.css" />
+        <script type="text/javascript" src="js/color.js"></script>
+        <script type="text/javascript" src="js/jquery-2.1.1.js"></script>
+        <script type="text/javascript" src="js/jquery.mousewheel.js"></script>
+        <script type="text/javascript" src="js/jquery.loader.js"></script>
+        <script type="text/javascript" src="js/jquery.canvas.js"></script>
+        <script type="text/javascript" src="js/kujira.js"></script>
+        <script type="text/javascript" src="js/pianoroll.js"></script>
+    </head>
+    <body>
+        <header>
+            <h1>音クジラ - oto kujira -</h1>
+        </header>
+        <div id="pianoroll">
+            <div class="keyboard"></div>
+            <div class="roll">
+                <canvas class="roll-staff hidden"></canvas>
+                <canvas class="roll-bar"></canvas>
+                <canvas class="roll-notes"></canvas>
+                <div class="roll-bar-label"></div>
+                <canvas class="roll-overlay"></canvas>
+                <div class="roll-seekbar"></div>
+            <!--<svg class="graph"></svg>-->
+        </div>
+        <footer>
+            <p class="copyright">
+                Copyright &copy; bgpat All rights reserved.
+            </p>
+        </footer>
+    </body>
+</html>

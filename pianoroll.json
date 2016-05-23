@@ -1,0 +1,20 @@
+{
+    "keyboard": {
+        "whiteKeyWidth": 24,
+        "whiteKeyHeight": 96,
+        "blackKeyWidth": 18,
+        "blackKeyHeight": 54,
+        "numberOfKeys": 128,
+        "blackKeyPositions": [null, -0.2, null, 0.2, null, null, -0.2, null, 0, null, 0.2, null]
+    },
+    "roll": {
+        "whiteColor": "#fefefe",
+        "blackColor": "#eee",
+        "staffColor": "rgba(0, 0, 0, 0.5)",
+        "staffWidth": 0.25,
+        "barColor": "rgba(0, 0, 0, 0.8)",
+        "barWidth": 0.25,
+        "barHeight": 192
+    },
+    "animationInterval": 20
+}
