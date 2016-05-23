@@ -1,0 +1,722 @@
+/**
+ * @fileoverview MIDIを操作するためのライブラリ
+ * 
+ * @author bgpat.tak@gmail.com (bgpat)
+ * @version 0.2
+ * @license MIT License
+ * @example //テンポ100でド(C4),レ(D4),ミ(E4)を鳴らすSMFファイルを生成する
+ * var smf = new Scherzo.SMF();
+ * var track = smf.createTrack();
+ * smf.setTempo(100);
+ * track.createNote(0, 60, 480, 0x7f);
+ * track.createNote(480, 62, 480, 0x7f);
+ * track.createNote(960, 64, 480, 0x7f);
+ * var blob = smf.toBlob();
+ * var url = URL.createObjectURL(blob);
+ * location.href = url;
+ */
+
+/**
+ * @namespace
+ */
+var Scherzo = {};
+
+(function(){
+    function bin(data, size, be){
+        var a = new Uint8Array(size);
+        if(be){
+            for(var i = 0; i < size; i++){
+                a[i] = data >> i * 8 & 0xff;
+            }
+        }else{
+            for(var i = 0; i < size; i++){
+                a[i] = data >> (size - i - 1) * 8 & 0xff;
+            }
+        }
+        return a;
+    }
+    
+    function bytes(data){
+        if(data && data.constructor === Array){
+            var a = new Uint8Array(data.length);
+            data.forEach(function(e, i){
+                a[i] = e;
+            });
+            return a;
+        }else if(typeof data === 'string'){
+            if(data === ''){
+                return new Uint8Array(0);
+            }
+            var s = encodeURIComponent(data).replace(/%[0-9A-F]{2}|(.)/g, function(a,b){
+                return b ? '%' + b.charCodeAt(0).toString(16) : a;
+            }).slice(1).split('%');
+            var a = new Uint8Array(s.length);
+            s.forEach(function(c, i){
+                a[i] = parseInt(c, 16);
+            });
+            return a;
+        }else{
+            return new Uint8Array(data);
+        }
+    }
+    
+    function concat(){
+        var size = [].reduce.call(arguments, function(a, b){return a + b.byteLength;}, 0);
+        var a = new Uint8Array(size);
+        var p = 0;
+        [].forEach.call(arguments, function(e){
+            a.set(e, p);
+            p += e.byteLength;
+        });
+        return a;
+    }
+    
+    function sizeof(obj){
+        return new Blob([obj]).size;
+    }
+    
+    /**
+     * Header, Trackを統合してSMFを生成するためのクラス
+     * @constructor
+     */
+    Scherzo.SMF = function(){
+        /**
+         * ヘッダーチャンク
+         * @type {Scherzo.Header}
+         */
+        this.header = new Scherzo.Header(this);
+        
+        /**
+         * トラックチャンク
+         * @type {Array.<Scherzo.Track>}
+         */
+        this.tracks = [];
+        
+        /**
+         * コンダクタートラック
+         * @type {Scherzo.Track}
+         */
+        this.conductorTrack = this.createTrack();
+    };
+    
+    /**
+     * タイトル
+     * @type {string}
+     * @deafult ''
+     */
+    Scherzo.SMF.prototype.title = '';
+    
+    /**
+     * 著作権情報
+     * @type {string}
+     * @deafult ''
+     */
+    Scherzo.SMF.prototype.copyright = '';
+    
+    /**
+     * テンポ
+     * @type {number}
+     * @default 120
+     */
+    Scherzo.SMF.prototype.tempo = 120;
+    
+    /**
+     * 拍子
+     * @type {Object}
+     * @default {nn: 4, dd: 4, cc: 0x18, bb: 8}
+     */
+    Scherzo.SMF.prototype.timeSignature = {
+        nn: 4,
+        dd: 4,
+        cc: 0x18,
+        bb: 8
+    };
+     
+    /**
+     * トラックを追加する
+     * @param {string} title トラックのタイトル
+     * @return {Scherzo.Track} 追加されたトラック
+     */
+    Scherzo.SMF.prototype.createTrack = function(title){
+        var track = new Scherzo.Track(this);
+        this.tracks.push(track);
+        if(title !== 0[0]){
+            track.setTitle(title);
+        }
+        return track;
+    };
+    
+    /**
+     * 著作権情報を設定する
+     * @param {string} text 著作権情報
+     * @return {Scherzo.MidiEvent} 著作権情報のイベント
+     */
+    Scherzo.SMF.prototype.setCopyright = function(text){
+        this.copyright = text + '';
+        var copyright = this.conductorTrack.filter({time: 0, status: 0xff, data: /^02/});
+        if(copyright.length){
+            copyright.forEach(function(event){
+                this.conductorTrack.remove(event);
+            }, this);
+        }
+        return this.conductorTrack.createText(this.copyright, 2);
+    };
+    
+    /**
+     * タイトルを設定する
+     * @param {string} text タイトル
+     * @return {Scherzo.MidiEvent} タイトルのイベント
+     */
+    Scherzo.SMF.prototype.setTitle = function(text){
+        this.title = text + '';
+        return this.conductorTrack.setTitle(this.title);
+    };
+    
+    /**
+     * テンポを設定する
+     * @param {number} [time] イベント発生時間(省略したときは初期テンポ)
+     * @param {number} tempo テンポ(四分音符/分)
+     * @return {Scherzo.MidiEvent} テンポのイベント
+     */
+    Scherzo.SMF.prototype.setTempo = function(time, tempo){
+        if(tempo == null){
+            tempo = time;
+            time = null;
+        }
+        var data = bin(60000000 / tempo | 0, 3);
+        if(time == null){
+            this.tempo = tempo;
+            var events = this.conductorTrack.filter({time: 0, status: 0xff, data: /^5103/});
+            if(events.length){
+                var event = events.shift();
+                event.data = data;
+                this.conductorTrack.remove(events);
+                return event;
+            }
+        }
+        return this.conductorTrack.createMetaEvent(time, 0x51, data);
+    };
+    
+    /**
+     * 拍子を設定する
+     * @param {number} [time] イベント発生時間(省略したときは初期テンポ)
+     * @param {number} nn 分子
+     * @param {number} dd 分母
+     * @param {number} cc ？
+     * @param {number} bb ？
+     * @return {Scherzo.MidiEvent} 拍子のイベント
+     */
+    Scherzo.SMF.prototype.setTimeSignature = function(time, nn, dd, cc, bb){
+        if(dd == null){
+            bb = cc;
+            cc = dd;
+            dd = nn;
+            nn = time;
+            time = null;
+        }
+        var data = bytes([nn, Math.log(dd) * Math.LOG2E + 0.5 | 0, cc || 0x18, bb || 8]);
+        if(time == null){
+            this.timeSignature = {
+                nn: nn,
+                dd: dd,
+                cc: cc,
+                bb: bb
+            };
+            var events = this.conductorTrack.filter({time: 0, status: 0xff, data: /^5804/});
+            if(events.length){
+                var event = events.shift();
+                event.data = data;
+                this.conductorTrack.remove(events);
+                return event;
+            }
+        }
+        return this.conductorTrack.createMetaEvent(time, 0x58, data);
+    };
+    
+    /**
+     * SMFファイルを生成
+     * @return {Blob} 生成されたSMFファイル
+     */
+    Scherzo.SMF.prototype.toBlob = function(){
+        var data;
+        var tracks = this.tracks;
+        switch(this.header.format){
+            case 0:
+                tracks = [new Scherzo.Track(smf)];
+                tracks[0].concat(this.tracks);
+            case 1:
+                data = tracks.map(function(track){
+                    return track.toBlob();
+                });
+                break;
+            case 2:
+                throw 'format 2 is not supported';
+        }
+        data.unshift(this.header.toBlob(tracks));
+        return new Blob(data, {type: 'audio/midi'});
+    };
+    
+    
+    /**
+     * ヘッダーチャンク
+     * @constructor
+     * @param {Scherzo.SMF} smf 親のSMFインスタンス
+     */
+    Scherzo.Header = function(smf){
+        /**
+         * 親のSMFインスタンス
+         * @type {Scherzo.SMF}
+         */
+        this.smf = smf;
+    };
+    
+    /**
+     * チャンクの種類
+     * @const {string}
+     */
+    Scherzo.Header.prototype.chunkType = 'MThd';
+    
+    /**
+     * ヘッダーチャンクのサイズ
+     * @const {number}
+     */
+    Scherzo.Header.prototype.size = 6;
+    
+    /**
+     * format フォーマットタイプ
+     * <ol start="0">
+     * <li>トラックは１つだけ</li>
+     * <li>複数トラック</li>
+     * <li>未実装</li>
+     * </ol>
+     * @type {number}
+     * @default 1
+     */ 
+    Scherzo.Header.prototype.format = 1;
+    
+    /**
+     * 分解能
+     * 第15bit目がtrueの場合はreal time,
+     * falseの場合はtick time
+     * {@link Scherzo.Header#setDivision}で設定する
+     * @type {number}
+     * @default 480
+     */
+    Scherzo.Header.prototype.division = 480;
+    
+    /**
+     * 分解能を設定
+     * @param {number} value 時間データ
+     * @param {boolean} type {@link Scherzo.Header#division}の第15bit目
+     */
+    Scherzo.Header.prototype.setDivision = function(value, type){
+        value &= 0x7fff;
+        if(type == 1){
+            value |= 0x8000;
+        }
+        this.division = value;
+    };
+    
+    /**
+     * ヘッダーチャンクを生成
+     * @param {Array.<Scherzo.Track>} tracks トラックのリスト
+     * @return {Blob} ヘッダーチャンク
+     */
+    Scherzo.Header.prototype.toBlob = function(tracks){
+        return new Blob([
+            this.chunkType,
+            bin(this.size, 4),
+            bin(this.format, 2),
+            bin(this.format ? tracks.length : 1, 2),
+            bin(this.division, 2)
+        ]);
+    };
+    
+    
+    /**
+     * トラックチャンク
+     * @param {Scherzo.SMF} smf 親のSMFインスタンス
+     * @param {string} title トラックのタイトル
+     * @constructor
+     */
+    Scherzo.Track = function(smf, title){
+        /**
+         * 親のSMFインスタンス
+         * @type {Scherzo.SMF}
+         */
+        this.smf = smf;
+        
+        /**
+         * イベントのリスト
+         * @type {Array.<Scherzo.MidiEvent>}
+         */
+        this.events = [];
+        
+        /**
+         * ノート(音符)のリスト
+         * @type {Array.<Scherzo.Note>}
+         */
+        this.notes = [];
+    };
+    
+    /**
+     * チャンクの種類
+     * @const {string}
+     */
+    Scherzo.Track.prototype.chunkType = 'MTrk';
+    
+    /**
+     * イベントを追加する
+     * @param {number} time 開始位置(絶対時間)
+     * @param {number} status ステータスバイト
+     * @param {?(Array|TypedArray)} [data] データバイト
+     * @return {Scherzo.MidiEvent} 追加されたイベント
+     */
+    Scherzo.Track.prototype.createEvent = function(time, status, data){
+        var event = new Scherzo.MidiEvent(time, status, bytes(data));
+        this.events.push(event);
+        return event;
+    };
+    
+    /**
+     * メタイベントを追加する
+     * @param {number} time 開始位置
+     * @param {number} type メタイベントの種類
+     * @param {?(Array|TypedArray)} [data] データ
+     * @return {Scherzo.MidiEvent} 追加されたイベント
+     */
+     Scherzo.Track.prototype.createMetaEvent = function(time, type, data){
+         data = data || [];
+         return this.createEvent(time, 0xff, concat(bytes([type, data.length]), bytes(data)));
+     };
+    
+    /**
+     * テキスト情報を追加する
+     * @param {number} [time] 追加位置、省略したときは0
+     * @param {string} text 追加する位置
+     * @param {number} [type] メタイベントの種類、省略したときは1
+     * @return {Scherzo.MidiEvent} 追加されたテキスト情報
+     */
+    Scherzo.Track.prototype.createText = function(time, text, type){
+        if(typeof time !== 'number'){
+            type = text;
+            text = time;
+            time = 0;
+        }
+        return this.createMetaEvent(time, type || 1, bytes(text + ''));
+    };
+    
+    /**
+     * トラックのタイトルを設定する
+     * @param {string} title 設定する文字列
+     * @return {Scherzo.MidiEvent} 追加されたイベント
+     */
+    Scherzo.Track.prototype.setTitle = function(text){
+        var title = this.filter({time: 0, status: 0xff, data: /^03/});
+        if(title.length){
+            title.forEach(function(event){
+                this.remove(event);
+            }, this);
+        }
+        this.createText(text, 3);
+    };
+    
+    /**
+     * ノートを追加する
+     * @param {number} start 開始時間
+     * @param {number} number ノート番号
+     * @param {number} gate ゲート時間
+     * @param {number} velocity ベロシティ
+     * @return {Scherzo.Note} 追加されたノート
+     */
+    Scherzo.Track.prototype.createNote = function(start, number, gate, velocity){
+        var note = new Scherzo.Note(start / (this.smf.header.division & 0x7fffffff) / 4, number, gate / (this.smf.header.division & 0x7fffffff) / 4, velocity);
+        this.notes.push(note);
+        return note;
+    };
+    
+    /**
+     * イベントを絞り込む
+     * @param {...(Scherzo.Track.filteringObject|Scherzo.Track.filteringCallback)} var_args フィルタリングオプション
+     *     複数個指定した場合はANDで検索する
+     * @return {Array.<Scherzo.MidiEvent>} 絞りこまれたイベントの配列
+     */
+    Scherzo.Track.prototype.filter = function(callback){
+        var events = this.events;
+        [].forEach.call(arguments, function(arg){
+            events = events.filter(typeof arg === 'function' ? arg : function(event){
+                return ['time', 'status', 'data'].every(function(prop){
+                    var vala = arg && arg[prop];
+                    var vale = event[prop];
+                    if(vala == null){
+                        return true;
+                    }
+                    if(vale.constructor === Uint8Array){
+                        return [].reduce.call(vale, function(a, b){
+                            return a + ('0' + b.toString(16)).slice(0, 2);
+                        }, '').match(vala);
+                    }else if(typeof vala === 'number'){
+                        return vale === vala;
+                    }else{
+                        return ('0' + vale.toString(16)).slice(0, 2).match(vala);
+                    }
+                });
+            });
+        });
+        return events;
+    };
+    /**
+     * {@link Scherzo.Track#filter}用のフィルタリング関数
+     * {@link Array#filter}のコールバック
+     * @callback Scherzo.Track.filteringCallback
+     * @param {Scherzo.MidiEvent} event MIDIイベント
+     * @param {number} index イベントのインデックス
+     * @return {boolean} trueのときは残す
+     */
+    /**
+     * {@link Scherzo.Track#filter}用のフィルタリング情報
+     * 数値のときは===演算子で評価する
+     * それ以外はイベントの要素を文字列化(16進数)して{@link String#match}で評価する
+     * nullの場合は常にtrueで評価する
+     * @typedef Scherzo.Track.filteringObject
+     * @property {?(number|string|RegExp)} time イベントの位置
+     * @property {?(number|string|RegExp)} status イベントのステータスバイト
+     * @property {?(number|string|RegExp)} data イベントのデータバイト
+     */
+    
+    /**
+     * イベントを削除する
+     * @param {...(Scherzo.MidiEvent|Array.<Scherzo.MidiEvent>)} var_args 削除するイベント(の配列)
+     */
+    Scherzo.Track.prototype.remove = function(){
+        [].forEach.call(arguments, function(event){
+            if(event && event.constructor === Array){
+                this.remove.apply(this, event);
+            }else{
+                for(var i = this.events.length; i-- > 0;){
+                    if(this.events[i] === event){
+                        this.events.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+        }, this);
+    };
+    
+    /**
+     * 他のトラックを統合する
+     * @param {Array.<Scherzo.Track>} tracks 統合されるトラック
+     */
+    Scherzo.Track.prototype.concat = function(tracks){
+        this.events = this.events.concat(tracks.reduce(function(list, track){
+            return list.concat(track.events);
+        }, []));
+        this.notes = this.notes.concat(tracks.reduce(function(list, track){
+            return list.concat(track.notes);
+        }, []));
+    };
+    
+    /**
+     * トラックチャンクを生成
+     * @return {Blob} トラックチャンク
+     */
+    Scherzo.Track.prototype.toBlob = function(){
+        var eventSize = 4;
+        var time = 0;
+        var status;
+        var events = this.events.concat(this.notes.reduce((function(list, note){
+            return list.concat(note.toEvent(this));
+        }).bind(this), []));
+        var data = events.sort(function(a, b){
+            return a.time - b.time;
+        }).map(function(event){
+            var blob = event.toBlob(time, status);
+            time = event.time;
+            status = event.status;
+            eventSize += blob.size;
+            return blob;
+        });
+        data.push(new Scherzo.MidiEvent(/* 終端マージン */0x20, 0xff, [0x2f, 0]).toBlob(0, -1));
+        data.unshift(this.chunkType, bin(eventSize, 4));
+        return new Blob(data);
+    };
+    
+    
+    /**
+     * MIDIイベント
+     * @param {number} time イベントの開始時間(絶対時間)
+     * @param {number} status ステータスバイト
+     * @param {?TypedArray} data データバイト
+     * @constructor
+     */
+    Scherzo.MidiEvent = function(time, status, data){
+        /**
+         * イベントの位置
+         * @type {number}
+         * @default 0
+         */
+        this.time = time || 0;
+        
+        /**
+         * ステータスバイト
+         * @type {number}
+         */
+        this.status = +status;
+        
+        /**
+         * データバイト
+         * @type {Uint8Array}
+         */
+        this.data = new Uint8Array(data || 0);
+        
+        /**
+         * SysExイベントかどうか
+         * @type {boolean}
+         */
+        this.isSysEx = this.status === 0xf0 || this.status === 0xf7;
+        
+        /**
+         * メタイベントの種類
+         * メタイベントではない場合はnull
+         * @type {?number}
+         */
+        this.meta = this.status === 0xff ? data[0] : null;
+    };
+    
+    /**
+     * ランニングステータスを使用する
+     * @type {boolean}
+     * @default false
+     */
+    Scherzo.MidiEvent.prototype.useRunningStatus = false;
+    
+    /**
+     * デルタタイムのバイト列を取得
+     * @param {number} prevTime 直前イベントの位置
+     * @return {Uint8Array} デルタタイム
+     */
+    Scherzo.MidiEvent.prototype.getDeltaTime = function(prevTime){
+        var delta = (this.time - prevTime) & 0xfffffff;
+        var tmp = [];
+        for(var i = 4; i-- > 0;){
+            var n = delta >> (i * 7);
+            n && tmp.push(n & 0x7f | (i && 0x80));
+        }
+        var res = new Uint8Array(tmp.length || 1);
+        tmp.forEach(function(e, i){
+            res[i] = e;
+        });
+        return res;
+    };
+    
+    /**
+     * イベントのバイナリを生成
+     * @param {number} prevTime 直前イベントの位置
+     * @param {number} prevStatus 直前イベントのステータスバイト, ランニングステータスに使用
+     * @return {Blob} イベントのバイナリ
+     */
+    Scherzo.MidiEvent.prototype.toBlob = function(prevTime, prevStatus){
+        var runningStatus = this.useRunningStatus && this.status === prevStatus && this.status < 0xf0;
+        var status = new Uint8Array(+!runningStatus);
+        runningStatus || (status[0] = this.status);
+        return new Blob([this.getDeltaTime(prevTime), status, this.data]);
+    };
+    
+    
+    /**
+     * ノートイベント
+     * このクラスでは時間を小節数で扱う
+     * @constructor
+     * @param {number} start 開始時間
+     * @param {number} number ノートナンバー
+     * @param {number} gate ゲートタイム
+     */
+    Scherzo.Note = function(start, number, gate, velocity){
+        /**
+         * 開始時間
+         * @type {number}
+         */
+        this.start = start;
+        
+        /**
+         * ノートナンバー(0-127)
+         * @type {number}
+         */
+        this.number = number;
+        
+        /**
+         * ゲートタイム
+         * @type {number}
+         */
+        this.gate = gate;
+        
+        /**
+         * ベロシティ(0-127)
+         * @type {number}
+         */
+        this.velocity = velocity;
+        
+        /**
+         * ポリフォニックキープレッシャーイベントの一覧
+         * @type {Array.<Scherzo.NoteChange>}
+         */
+        this.changes = [];
+    };
+    
+    /**
+     * ノートオフイベントのステータスバイト
+     * 0x80 or 0x90
+     * @type {number}
+     */
+    Scherzo.Note.prototype.noteOffStatus = 0x80;
+    
+    /**
+     * ポリフォニックキープレッシャーイベントを追加
+     * @param {number} time イベント発生時間
+     * @param {number} value 値
+     * @return {Scherzo.NoteChange} 追加されたイベント
+     */
+    Scherzo.Note.prototype.addChange = function(time, value){
+        var change = new Scherzo.NoteChange(time, value);
+        this.changes.push(change);
+        return change;
+    };
+     
+    /**
+     * toEvent
+     * @constructor
+     * @param {Scherzo.Track} track 元にするトラック
+     * @return {Array.<Scherzo.MidiEvent>} MIDIイベントのリスト
+     */
+    Scherzo.Note.prototype.toEvent = function(track){
+        var division = (track.smf.header.division & 0x7ffffff) * 4;
+        var part = track.part || 0;
+        var list = [];
+        list.push(new Scherzo.MidiEvent(this.start * division | 0, 0x90 | part, [this.number, this.velocity]));
+        this.changes.forEach(function(change){
+            list.push(new Scherzo.MidiEvent((this.start + change.time) * division | 0, 0xa0 | part, [this.number, change.velocity]));
+        }, this);
+        list.push(new Scherzo.MidiEvent((this.start + this.gate) * division | 0, this.noteOffStatus | part, [this.number, 0]));
+        return list;
+    };
+    
+    
+    /**
+     * ポリフォニックキープレッシャーイベント
+     * @param {number} time イベントの発生時間
+     * @param {number} value 値
+     */
+    Scherzo.NoteChange = function(time, value){
+        /**
+         * イベントの発生時間
+         * @type {number}
+         */
+        this.time = time;
+        
+        /**
+         * 値(0～127)
+         * @type { number}
+         */
+        this.value  = value;
+    };
+})();

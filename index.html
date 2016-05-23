@@ -2,37 +2,47 @@
 <html lang="ja">
     <head>
         <meta charset="utf-8">
-        <title>音クジラ</title>
-        <!--<meta name="viewport" content="width=device-width; initial-scale=1.0">-->
+        <title>otokujira</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <link rel="icon" type="image/vnd.microsoft.icon" href="img/favicon.ico">
         <link rel="stylesheet" type="text/css" href="css/default.css" />
+        <link rel="stylesheet" type="text/css" href="css/kujira.css" />
         <link rel="stylesheet" type="text/css" href="css/pianoroll.css" />
         <script type="text/javascript" src="js/color.js"></script>
         <script type="text/javascript" src="js/jquery-2.1.1.js"></script>
+        <script type="text/javascript" src="js/jquery.touch.js"></script>
         <script type="text/javascript" src="js/jquery.mousewheel.js"></script>
         <script type="text/javascript" src="js/jquery.loader.js"></script>
         <script type="text/javascript" src="js/jquery.canvas.js"></script>
+        <script type="text/javascript" src="js/jquery.pianoroll.js"></script>
+        <script type="text/javascript" src="js/scherzo.js"></script>
+        <script type="text/javascript" src="js/microphone.js"></script>
         <script type="text/javascript" src="js/kujira.js"></script>
-        <script type="text/javascript" src="js/pianoroll.js"></script>
     </head>
     <body>
-        <header>
-            <h1>音クジラ - oto kujira -</h1>
-        </header>
-        <div id="pianoroll">
-            <div class="keyboard"></div>
-            <div class="roll">
-                <canvas class="roll-staff hidden"></canvas>
-                <canvas class="roll-bar"></canvas>
-                <canvas class="roll-notes"></canvas>
-                <div class="roll-bar-label"></div>
-                <canvas class="roll-overlay"></canvas>
-                <div class="roll-seekbar"></div>
-            <!--<svg class="graph"></svg>-->
+        <ul id="toolbar">
+            <li class="btn-save" title="保存"><a download="kujira.mid"><span class="icon">save</span></a></li>
+            <li class="btn-play" title="再生"><span class="icon">play</span></li>
+            <li class="btn-stop" title="停止"><span class="icon">stop</span></li>
+            <li class="btn-volume" title="音量"><span class="icon">volumeup</span><span class="volume"></span></li>
+            <li class="btn-delete" title="削除"><span class="icon">delete</span></li>
+            <li class="btn-tempo" title="テンポの変更"><span class="icon">music</span>Tempo(<span class="tempo"></span>)</li>
+            <li class="btn-zoom-key" title="鍵盤の幅を拡大"><span class="icon">zoom</span>↔</li>
+            <li class="btn-zoomout-key" title="鍵盤の幅を縮小"><span class="icon">zoomout</span>↔</li>
+            <li class="btn-zoom-bar" title="小節の幅を拡大"><span class="icon">zoom</span>↕</li>
+            <li class="btn-zoomout-bar" title="小節の幅を縮小"><span class="icon">zoomout</span>↕</li>
+            <li class="btn-mic" title="マイク"><span class="icon">mic</span><span class="mic">Off</span></li>
+            <li class="btn-title" title="タイトル"><span class="icon">pen</span><span class="title">kujira</span></li>
+            <li class="btn-info" title="バージョン情報を表示/隠す"><span class="icon">info</span></li>
+        </ul>
+        <div id="pianoroll"></div>
+        <div class="versioninfo">
+            <div>
+                <h1><img src="img/kujira.png">otokujira - オトクジラ</h1>
+                <h2>Version 0.1</h2>
+                <p>bgpat <a href="http://twitter.com/bgpat_" target="_blank">Twitter@bgpat_</a></p>
+                <p>SpecialThanks! ロゴ: mikeneruko <a href="http://twitter.com/mikeneruko" target="_blank">Twitter@mikeneruko</a></p>
+            </div>
         </div>
-        <footer>
-            <p class="copyright">
-                Copyright &copy; bgpat All rights reserved.
-            </p>
-        </footer>
     </body>
 </html>

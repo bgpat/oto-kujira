@@ -9,7 +9,7 @@ $(function(){
         var noteReload = false;
         var pianoroll = $('#pianoroll');
         var keyboard = $('.keyboard', pianoroll);
-        var roll = $('.roll', pianoroll).data('cursor', true);
+        var roll = $('.roll', pianoroll);
         var graph = $('.graph', pianoroll);
         var keyboardHeight = data.keyboard.whiteKeyHeight;
         var whiteKeyWidth = data.keyboard.whiteKeyWidth;
@@ -39,9 +39,20 @@ $(function(){
             roll.mousewheel();
         };
         (function drawPianoroll(){
-            var _key = $('<div>').addClass('keyboard-key');
+            var _key = $('<div>').addClass('keyboard-key').on('mousedown', function(){
+                var number = $(this).data('number');
+                if(selections){
+                    for(var i = selections.length; i-- > 0;){
+                        var selection = selections[i];
+                        selection.number = number;
+                    }
+                    noteReload = true;
+                }else{
+                    addNote(number);
+                }
+            });
             for(var i = 0, x = 0; i < data.keyboard.numberOfKeys; i++){
-                var key = _key.clone();
+                var key = _key.clone(true).data('number', i);
                 var blackKeyPosition = data.keyboard.blackKeyPositions[i % 12];
                 if(blackKeyPosition === null){
                     key.addClass('keyboard-white-key').css({
@@ -119,20 +130,21 @@ $(function(){
                 });
                 $('.roll-bar', this).css('top', scroll % barHeight);
                 $('.roll-notes', this).css('top', function(){return scroll - $(this).data('scroll');});
-                $('.roll-seekbar', this).css('margin-top', scroll);
+                $('.roll-seekbar, .roll-endbar', this).css('margin-top', scroll);
                 noteReload = true;
             });
         })();
         function drawNotes(){
             if(noteReload){
                 var scroll = roll.data('scroll');
+                var end = 0;
                 $('.roll-notes', roll).css('top', 0).canvas(function(c){
                     c.clearRect(0, 0, this.width, this.height);
                     c.strokeStyle = rgbstr(hsv2rgb(150, 0.5, 0x99));
                     c.lineWidth = 1;
                     for(var i = 0; i < noteList.length; i++){
                         var note = noteList[i];
-                        var y = note.bar * barHeight + scroll;
+                        var y = note.start * barHeight + scroll;
                         var h = note.length * barHeight;
                         if(0 <= y + h && y <= this.height){
                             c.fillStyle = rgbastr(hsv2rgb(150, 1, 0xff), selections && selections.reduce(function(a, b){return a || b === note;}, false) ? 0.6 : 0.2);
@@ -142,8 +154,10 @@ $(function(){
                             c.fill();
                             c.stroke();
                         }
+                        end = Math.max(end, note.start + note.length);
                     }
                 }).data('scroll', scroll);
+                $('.roll-endbar', roll).css('top', end * barHeight);
                 noteReload = false;
             }
             setTimeout(drawNotes, data.animationInterval);
@@ -178,7 +192,7 @@ $(function(){
             }
             for(var i = noteList.length; i > 0;){
                 var note = noteList[--i];
-                if(x1 <= note.number && note.number + 1 <= x2 && y1 <= note.bar && note.bar + note.length <= y2){
+                if(x1 <= note.number && note.number + 1 <= x2 && y1 <= note.start && note.start + note.length <= y2){
                     res.push(note);
                 }
             }
@@ -191,15 +205,33 @@ $(function(){
         function getNote(x, y){
             for(var i = noteList.length; i > 0;){
                 var note = noteList[--i];
-                if(x - 1 <= note.number && note.number < x && note.bar <= y && y < note.bar + note.length){
+                if(x - 1 <= note.number && note.number < x && note.start <= y && y < note.start + note.length){
                     return note;
                 }
             }
             return null;
         }
+        function getBarPosition(selector){
+            var e = $(selector);
+            return (e.position().top + parseFloat(e.css('margin-top'))) / barHeight;
+        }
+        function addNote(number, start, length){
+            noteList.push(new Scherzo.Note(number, start || (getBarPosition($('.roll-endbar', roll)) * 16 | 0) / 16, length || 0.25));
+            noteReload = true;
+        }
         function changeCursor(){
             var p = rollPosition();
-            if(roll.data('cursor')){
+            if(roll.data('drag')){
+                if($('.roll-seekbar', roll).data('drag')){
+                    $(this).css('cursor', 'row-resize');
+                }else{
+                    if(selections === null){
+                        $(this).css('cursor', 'crosshair');
+                    }else if(resizeNote === null){
+                        $(this).css('cursor', 'move');
+                    }
+                }
+            }else{
                 var note = getNote(p.x, p.y);
                 for(var i = selections && selections.length; i-- > 0;){
                     var selection = selections[i];
@@ -248,13 +280,7 @@ $(function(){
                 }
             }
             noteReload = true;
-        }).on('mousemove mousedown mouseup mousewheel', changeCursor).on('dblclick', function(e){
-            var p = $(this).position();
-            var x = e.clientX - p.left;
-            var y = e.clientY - p.top - roll.data('scroll');
-            noteList.push(new Kujira.Note(x / staffWidth | 0, (y / barHeight * 16 | 0) / 16, 0.25));
-            noteReload = true;
-        });
+        }).on('mousemove mousedown mouseup mousewheel', changeCursor);
         drawNotes();
         $(window).resize(function(){
             resizePianoroll();
@@ -274,11 +300,11 @@ $(function(){
                         var selection = selections[i];
                         if(resizeNote === null){
                             selection.number += dx;
-                            selection.bar += dy;
+                            selection.start += dy;
                         }else{
                             selection.length += dy * resizeNote;
                             if(resizeNote < 0){
-                                selection.bar += dy;
+                                selection.start += dy;
                             }
                         }
                         noteReload = true;
@@ -287,9 +313,10 @@ $(function(){
                     var seekbar = $('.roll-seekbar', roll);
                     var dragSeekbar = seekbar.data('drag');
                     if(dragSeekbar !== 0[0]){
+                        var y = Math.max(0, Math.min(parseFloat($('.roll-endbar', roll).css('top')), p.ay));
                         seekbar.css('top', function(i, v){
-                            return parseFloat(v) + p.ay - dragSeekbar;
-                        }).data('drag', p.ay);
+                            return parseFloat(v) + y - dragSeekbar;
+                        }).data('drag', y);
                     }else{
                         $('.roll-overlay', roll).canvas(function(c){
                             c.clearRect(0, 0, this.width, this.height);
@@ -313,12 +340,16 @@ $(function(){
             });
             var drag = roll.data('drag');
             var p = rollPosition(e.clientX, e.clientY);
-            if(selections === null){
-                selections = getNotes(drag.position.x, drag.position.y, p.x, p.y);
-                noteReload = true;
+            if(selections === null && drag){
+                if(resizeNote === null){
+                    selections = getNotes(drag.position.x, drag.position.y, p.x, p.y);
+                    noteReload = true;
+                }
             }else{
-                selections.x = 0;
-                selections.y = 0;
+                if(selections){
+                    selections.x = 0;
+                    selections.y = 0;
+                }
             }
             resizeNote = null;
         }).on('mouseup', function(e){

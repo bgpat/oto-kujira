@@ -1,15 +1,85 @@
+@font-face {
+    font-family: 'LigatureSymbols';
+    src: url('../font/LigatureSymbols-2.11.eot');
+    src: url('../font/LigatureSymbols-2.11.eot?#iefix') format('embedded-opentype'),
+         url('../font/LigatureSymbols-2.11.woff') format('woff'),
+         url('../font/LigatureSymbols-2.11.ttf') format('truetype'),
+         url('../font/LigatureSymbols-2.11.svg#LigatureSymbols') format('svg');
+    src: url('../font/LigatureSymbols-2.11.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 body {
     margin: 0;
+    padding: 0;
 }
 
 canvas {
     display: block;
 }
 
-header, footer {
+.hidden {
     display: none;
 }
 
-.hidden {
+#toolbar {
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+    -o-user-select: none;
+    -ms-user-select: none;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#toolbar > li {
+    display: inline-block;
+    cursor: pointer;
+    margin: 4px;
+    padding: 0 8px;
+    height: 32px;
+    color: #333;
+    border: solid 1px #666;
+    border-radius: 8px;
+    transition-property: background;
+    transition-duration: 0.1s;
+}
+
+#toolbar > li > a {
+    color: #333;
+}
+
+#toolbar > li:hover {
+    background: #9cf;
+}
+
+#toolbar > li:active {
+    background: #69f;
+}
+
+.icon {
+    display: inline-block;
+    font-family: 'LigatureSymbols';
+    font-size: 32px;
+    height: 32px;
+    text-align: center;
+    -webkit-text-rendering: optimizeLegibility;
+    -moz-text-rendering: optimizeLegibility;
+    -ms-text-rendering: optimizeLegibility;
+    -o-text-rendering: optimizeLegibility;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-font-smoothing: antialiased;
+    -ms-font-smoothing: antialiased;
+    -o-font-smoothing: antialiased;
+    font-smoothing: antialiased;
+}
+
+.versioninfo {
     display: none;
+    position: absolute;
+    left: 0;
+    top: 0;
 }

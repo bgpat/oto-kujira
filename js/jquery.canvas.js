@@ -18,6 +18,31 @@ jQuery(function() {
         canvas: function(callback) {
             return this.each(function() {
                 var ctx = $(this).canvasContext();
+                $.extend(ctx, {
+                    line: function(x1, y1, x2, y2){
+                        this.beginPath();
+                        this.moveTo(x1, y1);
+                        this.lineTo(x2, y2);
+                        this.closePath();
+                    },
+                    rect: function(x, y, w, h){
+                        this.beginPath();
+                        this.moveTo(x, y);
+                        this.lineTo(x + w, y);
+                        this.lineTo(x + w, y + h);
+                        this.lineTo(x, y + h);
+                        this.closePath();
+                    },
+                    roundRect: function(x, y, w, h, r) {
+                        this.beginPath();
+                        this.moveTo(x, y + r);
+                        this.arc(x + r, y + h - r, r, Math.PI, Math.PI * 0.5, 1);
+                        this.arc(x + w - r, y + h - r, r, Math.PI * 0.5, 0, 1);
+                        this.arc(x + w - r, y + r, r, 0, Math.PI * 1.5, 1);
+                        this.arc(x + r, y + r, r, Math.PI * 1.5, Math.PI, 1);
+                        this.closePath();
+                    }
+                });
                 callback.call(this, ctx);
             });
         },
